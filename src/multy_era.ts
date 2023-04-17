@@ -72,7 +72,7 @@ function getYearlyRewardForValidator(percentageOfYearlyRewardForValidator: numbe
 }
 
 
-function sortByYearlyReward(data, totalStake: BN, balanceTotalIssuance: BN): [ValidatorData] {
+function sortByYearlyReward(data: ValidatorData[], totalStake: BN, balanceTotalIssuance: BN): ValidatorData[] {
 
     let balanceTotalIssuanceAmount = planksToAmount(balanceTotalIssuance)
     let totalStakeAmount = planksToAmount(totalStake)
@@ -105,59 +105,85 @@ class ValidatorData {
     }
 }
 
+
 async function main() {
     const wsProvider = new WsProvider('wss://rpc.polkadot.io');
     const api = await ApiPromise.create({provider: wsProvider});
 
+    let erasSortedValidators = new Map<number, ValidatorData[]>();
+
     console.log('Our client is connected: ${api.isConnected}');
 
     const eraOption = await api.query.staking.currentEra()
-    const era = eraOption.unwrap().toHuman()
-    console.log('Current era', era)
+    const currentEra = eraOption.unwrap()
+    console.log('Current era', currentEra)
 
     //fetch total issuance
     const balanceTotalIssuance = await api.query.balances.totalIssuance()
     console.log('Total issuance', balanceTotalIssuance)
 
-    const eraStakers = await api.query.staking.erasStakers.entries(era)
-    const validatorPrefs = await api.query.staking.erasValidatorPrefs.entries(era)
+    // let requested_eras: Array<number> = [];
+    const numEras = 3;
+
+    for (
+        let processingEra = currentEra.toNumber() - numEras;
+        processingEra <= currentEra.toNumber();
+        processingEra++
+    ) {
+        const eraStakers = await api.query.staking.erasStakers.entries(processingEra)
+        const validatorPrefs = await api.query.staking.erasValidatorPrefs.entries(processingEra)
+        console.log('processing era', processingEra)
+
+        // calculate total stake in a whole system
+        const totalStake = eraStakers.reduce((accumulator, current) => {
+            let [key, exposure] = current
+            // let era = key.args[0]
+            // let validatorId = key.args[1]
+            let [era, validatorId] = key.args
+            return accumulator.add(exposure.total.toBn())
+        }, bnToBn(0));
+
+        console.log('culc total stake for era', processingEra)
+
+        // associate validatorPrefix by its id to create hashMap validatorId -> validatorPrefs
+        let validatorPrefsByAccountIdHex = validatorPrefs.reduce(function (map, [storageKey, prefs]) {
+            let [_, validatorAccountId] = storageKey.args
+            map[validatorAccountId.toHex()] = prefs;
+            return map;
+        }, {});
+
+        // [VP1, VP2, VP3].associateBy(VP::address) => {VP.address: VP}
+        let data = eraStakers.map(([storageKey, eraStaker]) => {
+            let [_, validatorAccountId] = storageKey.args
+            let prefs = validatorPrefsByAccountIdHex[validatorAccountId.toHex()]
+
+            return new ValidatorData(convertPerBill(prefs.commission.toBn()), eraStaker.total.toBn(), validatorAccountId.toString())
+        })
+
+        //sorted array of validators for one era and write it into map
+        let sorted = sortByYearlyReward(data, totalStake, balanceTotalIssuance.toBn())
+        erasSortedValidators.set(processingEra, sorted);
+        console.log('sorted array for era', processingEra)
+    }
+
+
+    // const eraStakers = await api.query.staking.erasStakers.multi(req
+    //
+    // const validatorPrefs = await api.query.staking.erasValidatorPrefs.entries.multi(requested_eras)
 
     // staking.eraStakers: (eraIndex, validatorId) => Exposure
     // entries(eraIndex) => [(fullKey, Exposure)], fullKey = (eraIndex, validatorId)
 
     // eraStakers: [(key, exposure.total)]
-    //calculate total stake
-    const totalStake = eraStakers.reduce((accumulator, current) => {
-        let [key, exposure] = current
-        // let era = key.args[0]
-        // let validatorId = key.args[1]
-        let [era, validatorId] = key.args
-        return accumulator.add(exposure.total.toBn())
-    }, bnToBn(0));
+    // calculate total stake
+
 
     // 1. data = [(commission, totalStake, address)]
     // 2. apys = data.map { apy = getYearlyRewardForValidator(..); (apy, address) }
     // 3. sorted_apys = data.sortBy { apy }
     // 4. best = sorted_apys.take(16)
 
-    let validatorPrefsByAccountIdHex = validatorPrefs.reduce(function (map, [storageKey, prefs]) {
-        let [_, validatorAccountId] = storageKey.args
-        map[validatorAccountId.toHex()] = prefs;
-        return map;
-    }, {});
-
-    // [VP1, VP2, VP3].associateBy(VP::address) => {VP.address: VP}
-
-    let data = eraStakers.map(([storageKey, eraStaker]) => {
-        let [_, validatorAccountId] = storageKey.args
-        let prefs = validatorPrefsByAccountIdHex[validatorAccountId.toHex()]
-
-        return new ValidatorData(convertPerBill(prefs.commission.toBn()), eraStaker.total.toBn(), validatorAccountId.toString())
-    })
-
-    let sorted = sortByYearlyReward(data, totalStake, balanceTotalIssuance.toBn())
-    let best = sorted.slice(0, 16)
-
+    let best = erasSortedValidators.get(currentEra.toNumber()).slice(0, 16);
     console.log(best)
 }
 

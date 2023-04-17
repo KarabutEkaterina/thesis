@@ -1,7 +1,7 @@
 {
   "name": "thesis",
   "version": "1.0.0",
-  "main": "src/index.ts",
+  "main": "src/multy_era.ts",
   "license": "MIT",
   "dependencies": {
     "@polkadot/api": "^9.7.1",
@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "start": "node dist/index.js",
+    "start": "node dist/multy_era.js",
     "run": "yarn build && yarn start"
   }
 }
