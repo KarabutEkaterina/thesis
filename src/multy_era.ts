@@ -105,6 +105,13 @@ class ValidatorData {
     }
 }
 
+interface AverageValidatorRewards {
+
+    validatorId: string
+
+    averageReward: number
+}
+
 
 async function main() {
     const wsProvider = new WsProvider('wss://rpc.polkadot.io');
@@ -123,10 +130,10 @@ async function main() {
     console.log('Total issuance', balanceTotalIssuance)
 
     // let requested_eras: Array<number> = [];
-    const numEras = 3;
+    const numEras = 20;
 
     for (
-        let processingEra = currentEra.toNumber() - numEras;
+        let processingEra = currentEra.toNumber() - numEras + 1;
         processingEra <= currentEra.toNumber();
         processingEra++
     ) {
@@ -166,25 +173,47 @@ async function main() {
         console.log('sorted array for era', processingEra)
     }
 
+    // set: {validatorId for validatorId in era in erasSortedValidators}
 
-    // const eraStakers = await api.query.staking.erasStakers.multi(req
-    //
-    // const validatorPrefs = await api.query.staking.erasValidatorPrefs.entries.multi(requested_eras)
+    let allValidatorIds = new Set<string>()
 
-    // staking.eraStakers: (eraIndex, validatorId) => Exposure
-    // entries(eraIndex) => [(fullKey, Exposure)], fullKey = (eraIndex, validatorId)
+    erasSortedValidators.forEach((validatorsInEra) => {
+        validatorsInEra.forEach((validator) => allValidatorIds.add(validator.address))
+    })
 
-    // eraStakers: [(key, exposure.total)]
-    // calculate total stake
+    let averageHistoricalApys: AverageValidatorRewards[] = []
+    allValidatorIds.forEach((validatorId) => {
+        let apySum = 0.0
 
+        erasSortedValidators.forEach((validatorsInEra) => {
+            let targetValidatorDataInEra = validatorsInEra.find(
+                (validator) => validator.address == validatorId
+            )
 
-    // 1. data = [(commission, totalStake, address)]
-    // 2. apys = data.map { apy = getYearlyRewardForValidator(..); (apy, address) }
-    // 3. sorted_apys = data.sortBy { apy }
-    // 4. best = sorted_apys.take(16)
+            if (targetValidatorDataInEra != undefined) {
+                apySum += targetValidatorDataInEra.yearlyReward
+            }
+        })
 
-    let best = erasSortedValidators.get(currentEra.toNumber()).slice(0, 16);
-    console.log(best)
+        const averageValidatorRewards: AverageValidatorRewards = {
+            validatorId: validatorId,
+            averageReward: apySum / numEras
+        }
+
+        averageHistoricalApys.push(averageValidatorRewards)
+    })
+
+    let sortedAverageHistoricalApys = averageHistoricalApys.sort(
+        (a, b) =>
+            b.averageReward - a.averageReward
+    )
+
+    let bestHistorical = sortedAverageHistoricalApys.splice(0, 16);
+    let bestInstantaneous = erasSortedValidators.get(currentEra.toNumber()).splice(0, 16);
+
+    console.log("Best historical: ", bestHistorical)
+    console.log("====================")
+    console.log("Best instantaneous: ", bestInstantaneous)
 }
 
 main().catch(console.error)
