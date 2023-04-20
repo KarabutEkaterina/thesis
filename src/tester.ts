@@ -7,15 +7,6 @@ import axios from 'axios';
 
 let APY_KEY_TOKEN = "7069eaf578f244c3af4de2ce22425d3b"
 
-// curl -X POST 'https://polkadot.api.subscan.io/api/scan/account/reward_slash' \
-//   --header 'Content-Type: application/json' \
-//   --header 'X-API-Key: YOUR_KEY' \
-//   --data-raw '{
-// "row": 20,
-//     "page": 1,
-//     "address": "15fTw39Ju2jJiHeGe1fJ5DtgugUauy9tr2HZuiRNFwqnGQ1Q"
-// }'
-
 // const options = {
 //     headers: {
 //         'Content-Type': 'application/json',
@@ -29,40 +20,47 @@ let APY_KEY_TOKEN = "7069eaf578f244c3af4de2ce22425d3b"
 
 // const response = await axios.get(src, options)
 
-const src = 'https://polkadot.api.subscan.io/api/scan/account/reward_slash'
+const src = 'https://api.subquery.network/sq/nova-wallet/nova-wallet-polkadot'
 
 async function getRewardsSlashes() {
 
 
     const options = {
         headers: {
-                     'Content-Type': 'application/json',
-                     'X-API-Key': '7069eaf578f244c3af4de2ce22425d3b'}
+                     'Content-Type': 'application/json'/*,
+                     'X-API-Key': '7069eaf578f244c3af4de2ce22425d3b'*/}
     };
 
     const data = {
-        row : 20,
-        page : 1,
-        address: "15fTw39Ju2jJiHeGe1fJ5DtgugUauy9tr2HZuiRNFwqnGQ1Q"
+        query: `
+        query {
+  historyElements(filter: {
+    and: [
+      {address: {equalTo: "15fTw39Ju2jJiHeGe1fJ5DtgugUauy9tr2HZuiRNFwqnGQ1Q"}},
+      {reward: {isNull: false}},
+    ]
+  }, orderBy: BLOCK_NUMBER_DESC){
+    nodes{reward}
+  }
+}
+
+        `
     }
 
-    try {
-        const { data: { data: { list }} } = await axios.post(src,
-            { row : 20, page : 1, address: "15fTw39Ju2jJiHeGe1fJ5DtgugUauy9tr2HZuiRNFwqnGQ1Q"},
-            options)
 
-        console.log(list[0].amount)
+    try {
+        const { data: { data: { historyElements: { nodes } }} } = await axios.post(src, data, options)
+        console.log(nodes)
+        return data
+        //list[0].amount
     } catch (error) {
         console.error(error)
     }
 
-
 }
 
 async function main() {
-
     let rewardsSlashes = getRewardsSlashes()
-
 }
 
 main().catch(console.error)
