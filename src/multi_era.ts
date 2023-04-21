@@ -113,7 +113,111 @@ interface AverageValidatorRewards {
 }
 
 
-async function main() {
+// async function main() {
+//     const wsProvider = new WsProvider('wss://rpc.polkadot.io');
+//     const api = await ApiPromise.create({provider: wsProvider});
+//
+//     let erasSortedValidators = new Map<number, ValidatorData[]>();
+//
+//     console.log('Our client is connected: ${api.isConnected}');
+//
+//     const eraOption = await api.query.staking.currentEra()
+//     const currentEra = eraOption.unwrap()
+//     console.log('Current era', currentEra)
+//
+//     //fetch total issuance
+//     const balanceTotalIssuance = await api.query.balances.totalIssuance()
+//     console.log('Total issuance', balanceTotalIssuance)
+//
+//     // let requested_eras: Array<number> = [];
+//     const numEras = 20;
+//
+//     for (
+//         let processingEra = currentEra.toNumber() - numEras + 1;
+//         processingEra <= currentEra.toNumber();
+//         processingEra++
+//     ) {
+//         const eraStakers = await api.query.staking.erasStakers.entries(processingEra)
+//         const validatorPrefs = await api.query.staking.erasValidatorPrefs.entries(processingEra)
+//         console.log('processing era', processingEra)
+//
+//         // calculate total stake in a whole system
+//         const totalStake = eraStakers.reduce((accumulator, current) => {
+//             let [key, exposure] = current
+//             // let era = key.args[0]
+//             // let validatorId = key.args[1]
+//             let [era, validatorId] = key.args
+//             return accumulator.add(exposure.total.toBn())
+//         }, bnToBn(0));
+//
+//         console.log('culc total stake for era', processingEra)
+//
+//         // associate validatorPrefix by its id to create hashMap validatorId -> validatorPrefs
+//         let validatorPrefsByAccountIdHex = validatorPrefs.reduce(function (map, [storageKey, prefs]) {
+//             let [_, validatorAccountId] = storageKey.args
+//             map[validatorAccountId.toHex()] = prefs;
+//             return map;
+//         }, {});
+//
+//         // [VP1, VP2, VP3].associateBy(VP::address) => {VP.address: VP}
+//         let data = eraStakers.map(([storageKey, eraStaker]) => {
+//             let [_, validatorAccountId] = storageKey.args
+//             let prefs = validatorPrefsByAccountIdHex[validatorAccountId.toHex()]
+//
+//             return new ValidatorData(convertPerBill(prefs.commission.toBn()), eraStaker.total.toBn(), validatorAccountId.toString())
+//         })
+//
+//         //sorted array of validators for one era and write it into map
+//         let sorted = sortByYearlyReward(data, totalStake, balanceTotalIssuance.toBn())
+//         erasSortedValidators.set(processingEra, sorted);
+//         console.log('sorted array for era', processingEra)
+//     }
+//
+//     // set: {validatorId for validatorId in era in erasSortedValidators}
+//
+//     let allValidatorIds = new Set<string>()
+//
+//     erasSortedValidators.forEach((validatorsInEra) => {
+//         validatorsInEra.forEach((validator) => allValidatorIds.add(validator.address))
+//     })
+//
+//     let averageHistoricalApys: AverageValidatorRewards[] = []
+//     allValidatorIds.forEach((validatorId) => {
+//         let apySum = 0.0
+//
+//         erasSortedValidators.forEach((validatorsInEra) => {
+//             let targetValidatorDataInEra = validatorsInEra.find(
+//                 (validator) => validator.address == validatorId
+//             )
+//
+//             if (targetValidatorDataInEra != undefined) {
+//                 apySum += targetValidatorDataInEra.yearlyReward
+//             }
+//         })
+//
+//         const averageValidatorRewards: AverageValidatorRewards = {
+//             validatorId: validatorId,
+//             averageReward: apySum / numEras
+//         }
+//
+//         averageHistoricalApys.push(averageValidatorRewards)
+//     })
+//
+//     let sortedAverageHistoricalApys = averageHistoricalApys.sort(
+//         (a, b) =>
+//             b.averageReward - a.averageReward
+//     )
+//
+//     let bestHistorical = sortedAverageHistoricalApys.splice(0, 16);
+//     let bestInstantaneous = erasSortedValidators.get(currentEra.toNumber()).splice(0, 16);
+//
+//     console.log("Best historical: ", bestHistorical)
+//     console.log("====================")
+//     console.log("Best instantaneous: ", bestInstantaneous)
+// }
+// main().catch(console.error)
+
+export async function HistoricalApy():Promise<AverageValidatorRewards[]>  {
     const wsProvider = new WsProvider('wss://rpc.polkadot.io');
     const api = await ApiPromise.create({provider: wsProvider});
 
@@ -130,7 +234,7 @@ async function main() {
     console.log('Total issuance', balanceTotalIssuance)
 
     // let requested_eras: Array<number> = [];
-    const numEras = 20;
+    const numEras = 4;
 
     for (
         let processingEra = currentEra.toNumber() - numEras + 1;
@@ -208,12 +312,20 @@ async function main() {
             b.averageReward - a.averageReward
     )
 
-    let bestHistorical = sortedAverageHistoricalApys.splice(0, 16);
-    let bestInstantaneous = erasSortedValidators.get(currentEra.toNumber()).splice(0, 16);
+    // let bestHistorical = sortedAverageHistoricalApys.splice(0, 16);
+    // let bestInstantaneous = erasSortedValidators.get(currentEra.toNumber()).splice(0, 16);
 
-    console.log("Best historical: ", bestHistorical)
-    console.log("====================")
-    console.log("Best instantaneous: ", bestInstantaneous)
+    // console.log("Best historical: ", bestHistorical)
+    // console.log("====================")
+    // console.log("Best instantaneous: ", bestInstantaneous)
+    return sortedAverageHistoricalApys
 }
 
-main().catch(console.error)
+export async function bestHistoricalApy():Promise<AverageValidatorRewards[]>{
+
+    var sortedAverageHistoricalApys: AverageValidatorRewards[] = await HistoricalApy();
+    let bestHistorical = sortedAverageHistoricalApys.splice(0, 16);
+    //console.log("Best historical: ", bestHistorical)
+    return bestHistorical
+}
+
