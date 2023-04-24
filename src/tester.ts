@@ -5,7 +5,7 @@ import {bestHistoricalApy, HistoricalApy} from './multi_era';
 import {baselineApy, bestBaselineApy, baseInterestPerEra} from './baseline';
 
 import axios from 'axios';
-import {BigFromINumber, fromPlanks} from "./utils";
+import {BigFromBN, BigFromINumber, fromPlanks} from "./utils";
 
 let APY_KEY_TOKEN = "7069eaf578f244c3af4de2ce22425d3b"
 
@@ -98,22 +98,32 @@ async function main() {
     let validatorAddress = rewardsSlashes[0].validator
     console.log("Address of validator : ", validatorAddress)
 
-    // var historicalApy: AverageValidatorRewards[] = await bestHistoricalApy()
+    //получаем список средних APY всех валидаторов за несколько эр
+    let historicalApy: AverageValidatorRewards[] = await HistoricalApy()
     // console.log("HistoricalApy: ", historicalApy)
 
     //получаем список APY всех валидаторов
     let baseApy: ValidatorData[] = await baselineApy()
-    let validatorAPY = 0;
+
+    let baselineValidatorAPY = 0;
     for(let i = 0; i < baseApy.length; i++){
         if(baseApy[i].address == validatorAddress){
-            validatorAPY = baseApy[i].yearlyReward
+            baselineValidatorAPY = baseApy[i].yearlyReward
         }
     }
     //в случае, если необходимый валидатор не найден
-    if(validatorAPY == 0){
+    if(baselineValidatorAPY == 0){
         console.log("There is no such validator")
     }
-    console.log("Validator APY: ", validatorAPY)
+    console.log("baseline Validator APY: ", baselineValidatorAPY)
+
+    let multiEraValidatorAPY = 0;
+    for(let i = 0; i < historicalApy.length; i ++){
+        if(historicalApy[i].validatorId == validatorAddress){
+            multiEraValidatorAPY = historicalApy[i].averageReward
+        }
+    }
+    console.log("Multi era validator APY: ", multiEraValidatorAPY)
 
 
     const wsProvider = new WsProvider('wss://rpc.polkadot.io');
@@ -136,16 +146,14 @@ async function main() {
     console.log("stake in Dots : ", stakeInDots)
 
     //считаем прибыль не за год, а за эру = 1 день (изначальный алгоритм)
-    let baselineAlgorithmProfit = baseInterestPerEra( validatorAPY,stakeInDots)
+    let baselineAlgorithmProfit = baseInterestPerEra(baselineValidatorAPY,stakeInDots)
     console.log("baseline algorithm profit in dots: ", baselineAlgorithmProfit)
 
     //считаем настоящую прибыль за эру
     let realProfit = rewardsSlashes[0].amount
-   // let realProfitInDots = fromPlanks(BigFromINumber(realProfit), decimals).toNumber()
-    let realProfitInDots = Number(realProfit) / Math.pow(10,12)
+    let realProfitInDots = fromPlanks(BigFromBN(realProfit), decimals).toNumber()
     console.log("real profit: ", realProfitInDots)
 
-    //console.log("validatorPrefs : ", validatorPrefs)
 
 }
 

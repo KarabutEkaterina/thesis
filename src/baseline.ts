@@ -72,8 +72,8 @@ function getYearlyRewardForValidator(percentageOfYearlyRewardForValidator: numbe
 }
 
 export function baseInterestPerEra(APY: number, deposit: number): number{
-    let daysInEra = 1
-    return (deposit * APY * daysInEra) / (DAYS_IN_YEAR * 100)
+ console.log("APY in function",APY)
+    return ((APY + 1)**(1.0 / DAYS_IN_YEAR) - 1)* deposit
 }
 
 function sortByYearlyReward(data, totalStake: BN, balanceTotalIssuance: BN): [ValidatorData] {
